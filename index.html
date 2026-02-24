@@ -21,7 +21,6 @@
             padding: 2rem 1rem;
             margin: 0;
         }
-        /* main card */
         .card {
             max-width: calc(100vw - 2rem);
             width: fit-content;
@@ -79,7 +78,6 @@
             font-size: 0.85rem;
             min-width: max-content;
         }
-        /* sticky first two columns */
         th:first-child, td:first-child {
             position: sticky;
             left: 0;
@@ -90,12 +88,11 @@
         }
         th:nth-child(2), td:nth-child(2) {
             position: sticky;
-            left: 70px;          /* after first column 70px */
+            left: 70px;
             background: white;
             z-index: 10;
             border-right: 2px solid #cbd5e1;
         }
-        /* header background */
         th {
             background: #f8fafc !important;
             font-weight: 600;
@@ -114,10 +111,9 @@
             vertical-align: middle;
             white-space: nowrap;
         }
-        /* column widths - updated */
         col.item-col { width: 70px; }
-        col.task-col { width: 700px; }        /* increased from 600 to 700 */
-        col.remark-col { width: 600px; }       /* unchanged */
+        col.task-col { width: 700px; }
+        col.remark-col { width: 600px; }
         col.sfdc-col { width: 140px; }
         col.assigned-col { width: 140px; }
         col.start-col { width: 208px; }
@@ -125,7 +121,6 @@
         col.dur-col { width: 208px; }
         col.progress-col { width: 400px; }
         col.status-col { width: 130px; }
-        /* week columns - 15% larger = 28.75px ≈ 29px, set to 29px */
         .week-cell {
             width: 29px;
             min-width: 29px;
@@ -133,9 +128,8 @@
             text-align: center;
             vertical-align: middle;
             padding: 0;
-            font-size: 0.68rem;    /* 20% smaller than base 0.85rem → 0.68rem */
+            font-size: 0.68rem;
         }
-        /* cell scroll behaviour */
         .scrollable-cell {
             overflow-x: auto;
             overflow-y: hidden;
@@ -155,13 +149,6 @@
             background: #b9c7da;
             border-radius: 8px;
         }
-        /* special for task/remark/assigned/sfdc */
-        td .cell-content {
-            display: flex;
-            align-items: center;
-            height: 24px;
-        }
-        /* progress bar cell - bar length 55% smaller (original 300px → 135px) */
         .progress-container {
             display: flex;
             align-items: center;
@@ -169,7 +156,7 @@
             height: 24px;
         }
         .progress-bar-bg {
-            width: 135px;           /* 55% smaller than 300px */
+            width: 135px;
             background: #e9eef2;
             border-radius: 20px;
             height: 16px;
@@ -177,9 +164,9 @@
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #86efac, #15803d);
             border-radius: 20px;
             width: 0%;
+            transition: background 0.1s;
         }
         .progress-percent {
             min-width: 45px;
@@ -187,7 +174,6 @@
             color: #0b3b2a;
             font-size: 0.8rem;
         }
-        /* status chip */
         .status-chip {
             display: inline-block;
             height: 18px;
@@ -204,7 +190,6 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        /* week circle */
         .gantt-circle {
             display: inline-block;
             width: 16px;
@@ -220,47 +205,42 @@
             vertical-align: middle;
             padding: 0;
         }
-        /* item cell with icons - 30% smaller font & shape */
         .item-icons {
             display: flex;
             gap: 4px;
             align-items: center;
             height: 24px;
             font-weight: 500;
-            font-size: 0.7rem;        /* 30% smaller than typical 1rem */
+            font-size: 0.7rem;
         }
         .item-icons span {
             cursor: pointer;
-            font-size: 0.9rem;        /* icon size reduced (30% smaller from 1.3rem approx) */
+            font-size: 0.9rem;
             line-height: 1;
             user-select: none;
             color: #475569;
-            transform: scale(0.85);    /* further shrink icons consistently */
+            transform: scale(0.85);
         }
         .item-icons span:hover { color: #0f172a; }
-        /* month headers - each in own cell, separated by subtle border */
         .month-header-cell {
             background: #d9eaf7;
             font-weight: 600;
             color: #1e3a5f;
-            border-right: 2px solid #a0c0da;   /* stronger separation */
+            border-right: 2px solid #a0c0da;
             border-bottom: 2px solid #b9d5ec;
             text-align: center;
             padding: 0 2px;
             white-space: nowrap;
         }
-        /* month header row: each month gets its own th */
         .month-header-row th {
             background: #f0f4fa;
         }
-        /* week header row cells */
         .week-number-cell {
             font-size: 0.68rem;
             font-weight: 500;
             background: #f8fafc;
             border-right: 1px solid #cbd5e1;
         }
-        /* modal unchanged */
         .modal-overlay {
             position: fixed;
             top:0; left:0; width:100%; height:100%;
@@ -296,7 +276,7 @@
 </head>
 <body>
 <div class="card" id="appCard">
-    <h1>📋 My Tasks</h1>   <!-- changed title -->
+    <h1>📋 My Tasks</h1>
     <div class="toolbar">
         <button class="btn primary" id="addTaskBtn">➕ New task</button>
         <button class="btn" id="importBtn">📤 Import (Excel/CSV)</button>
@@ -341,7 +321,13 @@
         </div>
         <div class="form-row">
             <label>Progress %</label>
-            <input type="number" id="editProgress" min="0" max="100" value="0">
+            <!-- dropdown from 0 to 100 -->
+            <select id="editProgress">
+                <?php for (let i=0; i<=100; i++) { ?>
+                <option value="<?php echo $i; ?>"><?php echo $i; ?>%</option>
+                <?php } ?>
+            </select>
+            <!-- we'll generate with JS but need static fallback; will populate with JS -->
         </div>
         <div class="form-row">
             <label>Status</label>
@@ -349,7 +335,7 @@
                 <option value="Not Started">Not Started</option>
                 <option value="In Progress">In Progress</option>
                 <option value="At Risk">At Risk</option>
-                <option value="Blocked">Blocked</option>
+                <option value="Pending">Pending</option>  <!-- Blocked changed to Pending -->
                 <option value="Done">Done</option>
             </select>
         </div>
@@ -362,14 +348,15 @@
 
 <script>
 (function() {
-    // ---------- status color map ----------
+    // ---------- status color map: Blocked -> Pending (yellow #eab308) ----------
     const STATUS_COLOR = {
         'Not Started': '#94a3b8',
         'In Progress': '#2563eb',
         'At Risk': '#dc2626',
-        'Blocked': '#ea580c',
+        'Pending': '#eab308',      // changed from orange to yellow
         'Done': '#16a34a'
     };
+
     // pastel month colors array
     const MONTH_PASTEL = ['#f8d7e3','#d9eaf7','#e2f0da','#fff2cc','#d7d9f7','#f0dbcd','#c9e4f0','#f3d9f1','#d1e6d9','#ffe5b9','#d4e2f0','#f9d7d0'];
 
@@ -383,11 +370,11 @@
         if (stored) {
             try { tasks = JSON.parse(stored); } catch { tasks = []; }
         } else {
-            // demo default tasks
+            // demo default tasks with updated status
             tasks = [
                 { id: 't1', task: 'Design database', sfdc: 'https://sfdc.com/001', remark: 'ERD', assigned: 'Alice', start: '2025-03-10', due: '2025-04-05', progress: 70, status: 'In Progress' },
                 { id: 't2', task: 'Frontend prototype', sfdc: '', remark: 'Figma', assigned: 'Bob', start: '2025-03-20', due: '2025-04-10', progress: 40, status: 'At Risk' },
-                { id: 't3', task: 'API integration', sfdc: '', remark: 'REST', assigned: 'Charlie', start: '2025-04-01', due: '2025-04-22', progress: 15, status: 'Not Started' },
+                { id: 't3', task: 'API integration', sfdc: '', remark: 'REST', assigned: 'Charlie', start: '2025-04-01', due: '2025-04-22', progress: 15, status: 'Pending' }, // example Pending
             ];
         }
         tasks.forEach(t => { if (!t.id) t.id = crypto.randomUUID?.() || 'id-'+Date.now()+Math.random(); });
@@ -399,7 +386,7 @@
         const date = new Date(d);
         date.setHours(0,0,0,0);
         const thursday = new Date(date);
-        thursday.setDate(date.getDate() + (4 - (date.getDay() || 7))); // move to thursday
+        thursday.setDate(date.getDate() + (4 - (date.getDay() || 7)));
         const year = thursday.getFullYear();
         const firstThursday = new Date(year, 0, 1);
         firstThursday.setDate(1 + (4 - (firstThursday.getDay() || 7)));
@@ -412,7 +399,6 @@
         return `${date.getFullYear()}-${date.getMonth()}`;
     }
 
-    // compute global timeline (weeks from earliest monday to latest sunday)
     function computeTimelineWeeks() {
         if (!tasks.length) return { weekList: [], monthSpans: [] };
         let minDate = null, maxDate = null;
@@ -421,11 +407,10 @@
             if (t.due) { const dd = new Date(t.due); if (!maxDate || dd > maxDate) maxDate = dd; }
         });
         if (!minDate || !maxDate) return { weekList: [], monthSpans: [] };
-        // adjust to Monday of min week, Sunday of max week
         const startMonday = new Date(minDate);
-        startMonday.setDate(minDate.getDate() - ((minDate.getDay() + 6) % 7)); // to monday
+        startMonday.setDate(minDate.getDate() - ((minDate.getDay() + 6) % 7));
         const endSunday = new Date(maxDate);
-        endSunday.setDate(maxDate.getDate() + (7 - (maxDate.getDay() || 7))); // next sunday
+        endSunday.setDate(maxDate.getDate() + (7 - (maxDate.getDay() || 7)));
 
         const weekList = [];
         const current = new Date(startMonday);
@@ -437,8 +422,7 @@
             current.setDate(current.getDate() + 7);
         }
 
-        // build month spans for header - each month gets own cell (separate th)
-        const monthSpans = []; // array of { monthName, startIdx, endIdx, year, month }
+        const monthSpans = [];
         const monthMap = new Map(); 
         weekList.forEach((w, idx) => {
             const monthKey = getMonthYearKey(w.start);
@@ -455,7 +439,6 @@
                 obj.endIdx = idx;
             }
         });
-        // convert to array sorted by startIdx
         monthSpans.push(...Array.from(monthMap.values()).sort((a,b) => a.startIdx - b.startIdx));
         return { weekList, monthSpans };
     }
@@ -466,30 +449,21 @@
         const header = document.getElementById('tableHeader');
         const body = document.getElementById('tableBody');
         
-        // First header row: static columns + month cells (each month its own TH with colspan)
         let headerHtml = '<tr>';
-        // static column headers (10 columns)
         headerHtml += '<th>Item</th><th>Task</th><th>Remark</th><th>SFDC</th><th>Assigned</th><th>Start</th><th>Due</th><th>Duration</th><th>Progress</th><th>Status</th>';
-        // month cells
         for (let m of monthSpans) {
             const colspan = m.endIdx - m.startIdx + 1;
             const pastel = MONTH_PASTEL[(m.month + m.year) % 12];
             headerHtml += `<th colspan="${colspan}" class="month-header-cell" style="background:${pastel};">${m.name}</th>`;
         }
-        headerHtml += '</tr>';
-
-        // Second header row: week numbers (under static we leave empty, under months we put week numbers)
-        headerHtml += '<tr>';
-        // empty cells for static columns (10)
+        headerHtml += '</tr><tr>';
         for (let i=0; i<10; i++) headerHtml += '<th></th>';
-        // week numbers, each in its own th with class week-cell
         for (let w of weekList) {
             headerHtml += `<th class="week-cell week-number-cell">W${w.week}</th>`;
         }
         headerHtml += '</tr>';
         header.innerHTML = headerHtml;
 
-        // body rows
         let bodyHtml = '';
         tasks.forEach((task, index) => {
             const itemNum = index + 1;
@@ -499,29 +473,29 @@
             const statusColor = STATUS_COLOR[task.status] || '#94a3b8';
 
             bodyHtml += '<tr>';
-            // item column with icons - 30% smaller applied via CSS
             bodyHtml += `<td><div class="item-icons"><span>${itemNum}</span><span class="edit-icon" data-id="${task.id}">✏️</span><span class="delete-icon" data-id="${task.id}">🗑️</span></div></td>`;
-            // task (scrollable) double-click opens edit
             bodyHtml += `<td ondblclick="window.openEditModal('${task.id}')"><div class="scrollable-cell">${escapeHtml(task.task || '')}</div></td>`;
-            // remark
             bodyHtml += `<td><div class="scrollable-cell">${escapeHtml(task.remark || '')}</div></td>`;
-            // sfdc
             bodyHtml += `<td><div class="scrollable-cell">${escapeHtml(task.sfdc || '')}</div></td>`;
-            // assigned
             bodyHtml += `<td><div class="scrollable-cell">${escapeHtml(task.assigned || '')}</div></td>`;
-            // start
             bodyHtml += `<td>${task.start || ''}</td>`;
-            // due
             bodyHtml += `<td>${task.due || ''}</td>`;
-            // duration
             bodyHtml += `<td>${duration}</td>`;
-            // progress bar (shorter bar)
+
+            // progress bar with dynamic color based on status
             const p = task.progress || 0;
-            bodyHtml += `<td><div class="progress-container"><div class="progress-bar-bg"><div class="progress-fill" style="width:${p}%;"></div></div><span class="progress-percent">${p}%</span></div></td>`;
-            // status chip
+            // Use status color for fill, but apply a gradient-like style: we set background to statusColor with slight variation? use solid status color for clarity.
+            // But we want a smooth gradient? we can do a linear gradient from light to dark of the same hue.
+            // For simplicity and to satisfy "progress color to be dependent color as Status", we use solid statusColor.
+            // However better: light version to dark version of same color.
+            const lighterColor = adjustColor(statusColor, 1.2); // simple lighten
+            const darkerColor = adjustColor(statusColor, 0.8);
+            const gradientStyle = `linear-gradient(90deg, ${lighterColor}, ${darkerColor})`;
+            
+            bodyHtml += `<td><div class="progress-container"><div class="progress-bar-bg"><div class="progress-fill" style="width:${p}%; background: ${gradientStyle};"></div></div><span class="progress-percent">${p}%</span></div></td>`;
+
             bodyHtml += `<td><span class="status-chip" style="background:${statusColor};">${task.status || 'Not Started'}</span></td>`;
 
-            // Gantt week cells (use 29px width from week-cell class)
             for (let w of weekList) {
                 let showCircle = false;
                 if (start && due) {
@@ -538,13 +512,25 @@
         });
         body.innerHTML = bodyHtml;
 
-        // attach event listeners to icons
         document.querySelectorAll('.edit-icon').forEach(el => {
             el.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(el.dataset.id); });
         });
         document.querySelectorAll('.delete-icon').forEach(el => {
             el.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(el.dataset.id); });
         });
+    }
+
+    // simple helper to lighten/darken color (hex)
+    function adjustColor(hex, factor) {
+        // factor >1 lightens, <1 darkens
+        hex = hex.replace('#','');
+        let r = parseInt(hex.substring(0,2),16);
+        let g = parseInt(hex.substring(2,4),16);
+        let b = parseInt(hex.substring(4,6),16);
+        r = Math.min(255, Math.floor(r * factor));
+        g = Math.min(255, Math.floor(g * factor));
+        b = Math.min(255, Math.floor(b * factor));
+        return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
     }
 
     window.escapeHtml = (text) => {
@@ -565,6 +551,17 @@
     const inpDue = document.getElementById('editDue');
     const inpProgress = document.getElementById('editProgress');
     const inpStatus = document.getElementById('editStatus');
+
+    // populate progress dropdown from 0 to 100 (since static php not executed)
+    function populateProgressDropdown() {
+        let options = '';
+        for (let i = 0; i <= 100; i++) {
+            options += `<option value="${i}">${i}%</option>`;
+        }
+        inpProgress.innerHTML = options;
+    }
+    populateProgressDropdown();
+
     let currentEditId = null;
 
     function openEditModal(id) {
@@ -597,7 +594,6 @@
         }
     }
 
-    // save modal
     document.getElementById('modalSave').addEventListener('click', () => {
         const newTask = {
             id: currentEditId || (crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+Math.random()),
@@ -679,9 +675,7 @@
         });
     });
 
-    // initial load & render
     loadTasks(); render();
-    // close modal if click outside
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.add('hidden'); });
 })();
 </script>
