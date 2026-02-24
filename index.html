@@ -1,669 +1,666 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Platform · Gantt (refined)</title>
-  <!-- SheetJS, html2canvas, jsPDF, font-awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      background: #f1f5f9;
-      font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
-      color: #0f172a;
-    }
-    .platform {
-      max-width: 100%;
-      background: white;
-      border-radius: 0 0 24px 24px;
-      box-shadow: 0 20px 35px -8px rgba(0,0,0,0.15);
-      padding: 20px 24px 24px 24px;
-      margin: 0;
-    }
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .toolbar h2 {
-      margin-right: 16px;
-      font-weight: 600;
-      font-size: 1.6rem;
-      color: #1e293b;
-    }
-    button, .file-label {
-      background: white;
-      border: 1px solid #cbd5e1;
-      border-radius: 40px;
-      padding: 8px 18px;
-      font-weight: 500;
-      font-size: 13px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    button:hover, .file-label:hover {
-      background: #f8fafc;
-      border-color: #94a3b8;
-    }
-    .btn-primary {
-      background: #1e293b;
-      color: white;
-      border: none;
-    }
-    .btn-primary:hover { background: #0f172a; }
-
-    .table-wrapper {
-      overflow: auto;
-      border: 1px solid #e2e8f0;
-      border-radius: 20px;
-      background: white;
-      max-height: 70vh;
-    }
-
-    table {
-      border-collapse: collapse;
-      font-size: 12px;
-      table-layout: fixed;
-      background: white;
-      min-width: 100%;
-    }
-
-    th, td {
-      border-right: 1px solid #e9eef2;
-      border-bottom: 1px solid #e9eef2;
-      padding: 0 4px;
-      height: 24px;
-      line-height: 24px;
-      background: white;
-      vertical-align: middle;
-      text-align: left;
-    }
-    th {
-      background: #f8fafc;
-      font-weight: 600;
-      border-bottom: 2px solid #cbd5e1;
-    }
-
-    /* sticky first two columns */
-    th:first-child, td:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 10;
-      background: white;
-      border-right: 2px solid #b9c7da;
-    }
-    th:nth-child(2), td:nth-child(2) {
-      position: sticky;
-      left: 70px;
-      z-index: 10;
-      background: white;
-      border-right: 2px solid #b9c7da;
-    }
-    th:first-child, th:nth-child(2) {
-      background: #f0f4fa;
-      z-index: 11;
-    }
-
-    /* column widths - adjusted as requested */
-    colgroup col.item-col { width: 70px; }                /* Item column */
-    colgroup col.task-col { width: 600px; }               /* 50% larger than original 400px */
-    colgroup col.sfdc-col { width: 104px; }
-    colgroup col.remark-col { width: 600px; }             /* 50% larger than original 400px */
-    colgroup col.assigned-col,
-    colgroup col.start-col,
-    colgroup col.due-col { width: 104px; }
-    colgroup col.duration-col { width: 208px; }           /* doubled from 104px */
-    colgroup col.progress-col { width: 300px; }           /* doubled from 150px */
-    colgroup col.status-col { width: 130px; }
-    .week-col { width: 25px; min-width: 25px; max-width: 25px; }
-
-    /* scrollable cell content */
-    .scrollable-cell {
-      overflow-x: auto;
-      white-space: nowrap;
-      scrollbar-width: thin;
-      height: 24px;
-      line-height: 24px;
-    }
-    .scrollable-cell::-webkit-scrollbar {
-      height: 4px;
-    }
-    .scrollable-cell::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 10px;
-    }
-
-    /* status chip - reduced height by 25% (from 24px to 18px) */
-    .status-badge {
-      display: inline-block;
-      padding: 0px 8px;
-      border-radius: 30px;
-      font-size: 11px;
-      font-weight: 600;
-      color: white;
-      text-align: center;
-      min-width: 80px;
-      height: 18px;
-      line-height: 18px;
-    }
-    .status-notstarted { background: #94a3b8; }
-    .status-inprogress { background: #2563eb; }
-    .status-atrisk     { background: #dc2626; }
-    .status-blocked    { background: #ea580c; }
-    .status-done       { background: #16a34a; }
-
-    /* progress bar */
-    .progress-container {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      height: 24px;
-    }
-    .progress-bg {
-      background: #e2e8f0;
-      border-radius: 30px;
-      height: 12px;
-      flex: 1;
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%;
-      border-radius: 30px;
-      background: linear-gradient(90deg, #86efac, #15803d);
-    }
-    .progress-text {
-      font-size: 11px;
-      min-width: 40px;
-      font-weight: 500;
-    }
-
-    /* Gantt bars - same height as status badge (18px) */
-    .week-cell {
-      text-align: center;
-      vertical-align: middle;
-      padding: 0;
-    }
-    .gantt-bar {
-      display: inline-block;
-      width: 20px;
-      height: 18px;
-      border-radius: 4px;
-      background: #2563eb;
-    }
-
-    /* month header */
-    .month-header {
-      background: #e0f2fe;
-      font-weight: 600;
-      font-size: 11px;
-      text-align: center;
-      border-right: 1px solid #9bbde0;
-      color: #075985;
-    }
-    .week-label {
-      text-align: center;
-      font-size: 9px;
-      font-weight: 600;
-      background: #ecf7ff;
-    }
-
-    /* item cell */
-    .item-icons {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .item-number {
-      font-weight: 600;
-      color: #1e293b;
-      width: 20px;
-      display: inline-block;
-    }
-    .icon-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 14px;
-      color: #475569;
-      padding: 0;
-    }
-    .icon-btn:hover { color: #0f172a; }
-
-    /* modal */
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.4);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-    }
-    .modal-card {
-      background: white;
-      border-radius: 32px;
-      padding: 28px;
-      width: 440px;
-      max-width: 96%;
-    }
-    .modal-card h3 { margin-bottom: 20px; }
-    .modal-card input, .modal-card select, .modal-card textarea {
-      width: 100%;
-      padding: 10px 14px;
-      margin-bottom: 14px;
-      border: 1px solid #cbd5e1;
-      border-radius: 30px;
-      font-size: 13px;
-    }
-    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager · Gantt timeline</title>
+    <!-- SheetJS, html2canvas, jspdf (CDN) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            background: #f1f5f9;
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem;
+            margin: 0;
+        }
+        /* main card */
+        .card {
+            max-width: calc(100vw - 2rem);
+            width: fit-content;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 35px -8px rgba(0,0,0,0.15), 0 5px 10px -4px rgba(0,0,0,0.05);
+            padding: 1.5rem 1rem 1.5rem 1rem;
+        }
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 500;
+            margin: 0 0 1rem 0.5rem;
+            letter-spacing: -0.01em;
+            color: #0b1c33;
+        }
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            padding-left: 8px;
+        }
+        .btn {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 0.4rem 1.2rem;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #1e293b;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            transition: 0.1s ease;
+        }
+        .btn:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+        }
+        .btn.primary {
+            background: #1e3a5f;
+            border-color: #0f2b44;
+            color: white;
+        }
+        .table-wrapper {
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            overflow: auto;
+            max-height: 70vh;
+            background: white;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.02);
+        }
+        table {
+            border-collapse: collapse;
+            table-layout: auto;
+            font-size: 0.85rem;
+            min-width: max-content;
+        }
+        /* sticky first two columns */
+        th:first-child, td:first-child {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 10;
+            border-right: 2px solid #cbd5e1;
+            box-shadow: 2px 0 5px -2px rgba(0,0,0,0.05);
+        }
+        th:nth-child(2), td:nth-child(2) {
+            position: sticky;
+            left: 70px;          /* after first column 70px */
+            background: white;
+            z-index: 10;
+            border-right: 2px solid #cbd5e1;
+        }
+        /* header background */
+        th {
+            background: #f8fafc !important;
+            font-weight: 600;
+            color: #1e293b;
+            border-bottom: 2px solid #cbd5e1;
+            white-space: nowrap;
+            padding: 0 6px;
+            height: 36px;          /* header taller */
+            vertical-align: middle;
+        }
+        td {
+            height: 24px;           /* EXACT row height */
+            padding: 0 4px;
+            border-bottom: 1px solid #e9eef2;
+            border-right: 1px solid #e9eef2;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        /* column widths */
+        col.item-col { width: 70px; }
+        col.task-col { width: 600px; }
+        col.remark-col { width: 600px; }
+        col.sfdc-col { width: 140px; }
+        col.assigned-col { width: 140px; }
+        col.start-col { width: 208px; }
+        col.due-col { width: 208px; }
+        col.dur-col { width: 208px; }
+        col.progress-col { width: 400px; }
+        col.status-col { width: 130px; }
+        /* week columns (dynamic) - each 25px */
+        .week-cell {
+            width: 25px;
+            min-width: 25px;
+            max-width: 25px;
+            text-align: center;
+            vertical-align: middle;
+            padding: 0;
+        }
+        /* cell scroll behaviour */
+        .scrollable-cell {
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            scrollbar-width: thin;
+            max-width: 100%;
+            height: 24px;
+            line-height: 24px;
+            display: inline-block;
+            width: 100%;
+        }
+        .scrollable-cell::-webkit-scrollbar {
+            height: 3px;
+            background: transparent;
+        }
+        .scrollable-cell::-webkit-scrollbar-thumb {
+            background: #b9c7da;
+            border-radius: 8px;
+        }
+        /* special for task/remark/assigned/sfdc */
+        td .cell-content {
+            display: flex;
+            align-items: center;
+            height: 24px;
+        }
+        /* progress bar cell */
+        .progress-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            height: 24px;
+        }
+        .progress-bar-bg {
+            width: 300px;          /* takes most of 400px */
+            background: #e9eef2;
+            border-radius: 20px;
+            height: 16px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #86efac, #15803d);
+            border-radius: 20px;
+            width: 0%;
+        }
+        .progress-percent {
+            min-width: 45px;
+            font-weight: 600;
+            color: #0b3b2a;
+        }
+        /* status chip */
+        .status-chip {
+            display: inline-block;
+            height: 18px;                /* 24 * 0.75 = 18 */
+            line-height: 18px;
+            padding: 0 10px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: white;
+            text-align: center;
+            background-color: #94a3b8;    /* default */
+            max-width: 110px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* week circle */
+        .gantt-circle {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: currentColor; /* set via inline style */
+            vertical-align: middle;
+            margin: 0 auto;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        td.week-cell {
+            text-align: center;
+            vertical-align: middle;
+            padding: 0;
+        }
+        /* item cell with icons */
+        .item-icons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            height: 24px;
+            font-weight: 500;
+        }
+        .item-icons span {
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            user-select: none;
+            color: #475569;
+        }
+        .item-icons span:hover { color: #0f172a; }
+        /* month headers pastel */
+        .month-header {
+            background: #d9eaf7;  /* base pastel */
+            font-weight: 600;
+            color: #1e3a5f;
+            border-bottom: 2px solid #b9d5ec;
+            text-align: center;
+        }
+        /* month variety via js */
+        /* modal */
+        .modal-overlay {
+            position: fixed;
+            top:0; left:0; width:100%; height:100%;
+            background: rgba(15,23,42,0.4);
+            backdrop-filter: blur(2px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-card {
+            background: white;
+            border-radius: 32px;
+            padding: 2rem 2rem 1.8rem;
+            width: 500px;
+            max-width: 94%;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+        }
+        .modal-card h3 { font-size: 1.8rem; font-weight: 400; margin-top: 0; margin-bottom: 1.5rem; color:#0b2542; }
+        .form-row { margin-bottom: 1rem; display: flex; flex-direction: column; }
+        .form-row label { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.2rem; color:#334155; }
+        .form-row input, .form-row select, .form-row textarea {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            background: white;
+        }
+        .form-row textarea { min-height: 70px; resize: vertical; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 0.8rem; margin-top: 2rem; }
+        .hidden { display: none; }
+    </style>
 </head>
 <body>
-<div class="platform">
-  <div class="toolbar">
-    <h2><i class="fas fa-tasks" style="margin-right: 6px;"></i>Platform · Gantt</h2>
-    <button class="btn-primary" id="addTaskBtn"><i class="fas fa-plus-circle"></i> Add task</button>
-    <button id="exportExcelBtn"><i class="fas fa-file-excel"></i> Export XLSX</button>
-    <button id="exportPDFBtn"><i class="fas fa-file-pdf"></i> Export PDF</button>
-    <label for="importFile" class="file-label"><i class="fas fa-upload"></i> Import Excel/CSV</label>
-    <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none;">
-    <span style="margin-left:auto; color:#475569;"><i class="far fa-save"></i> autosave</span>
-  </div>
-
-  <div class="table-wrapper" id="ganttWrapper">
-    <table id="ganttTable">
-      <colgroup>
-        <col class="item-col">
-        <col class="task-col">
-        <col class="sfdc-col">
-        <col class="remark-col">
-        <col class="assigned-col">
-        <col class="start-col">
-        <col class="due-col">
-        <col class="duration-col">
-        <col class="progress-col">
-        <col class="status-col">
-      </colgroup>
-      <thead id="tableHeader"></thead>
-      <tbody id="tableBody"></tbody>
-    </table>
-  </div>
+<div class="card" id="appCard">
+    <h1>📋 Task Gantt · dense</h1>
+    <div class="toolbar">
+        <button class="btn primary" id="addTaskBtn">➕ New task</button>
+        <button class="btn" id="importBtn">📤 Import (Excel/CSV)</button>
+        <button class="btn" id="exportExcelBtn">📥 Export Excel</button>
+        <button class="btn" id="exportPdfBtn">🖨️ Export PDF</button>
+    </div>
+    <div class="table-wrapper" id="tableWrapper">
+        <table id="ganttTable">
+            <thead id="tableHeader"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
 </div>
 
-<!-- modal editor -->
-<div id="editorModal" class="modal">
-  <div class="modal-card">
-    <h3 id="modalTitle">➕ New task</h3>
-    <input type="text" id="editTask" placeholder="Task name">
-    <input type="text" id="editSFDC" placeholder="SFDC link">
-    <textarea id="editRemark" placeholder="Remark" rows="2"></textarea>
-    <input type="text" id="editAssigned" placeholder="Assigned">
-    <div style="display:flex; gap:8px;">
-      <input type="date" id="editStart" style="flex:1;">
-      <input type="date" id="editDue" style="flex:1;">
+<!-- MODAL for add/edit -->
+<div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal-card">
+        <h3 id="modalTitle">➕ Edit task</h3>
+        <div class="form-row">
+            <label>Task</label>
+            <input type="text" id="editTask" placeholder="Task description">
+        </div>
+        <div class="form-row">
+            <label>SFDC link</label>
+            <input type="text" id="editSfdc" placeholder="https://...">
+        </div>
+        <div class="form-row">
+            <label>Remark</label>
+            <textarea id="editRemark" placeholder="Notes..."></textarea>
+        </div>
+        <div class="form-row">
+            <label>Assigned</label>
+            <input type="text" id="editAssigned" placeholder="Person name">
+        </div>
+        <div class="form-row">
+            <label>Start date</label>
+            <input type="date" id="editStart">
+        </div>
+        <div class="form-row">
+            <label>Due date</label>
+            <input type="date" id="editDue">
+        </div>
+        <div class="form-row">
+            <label>Progress %</label>
+            <input type="number" id="editProgress" min="0" max="100" value="0">
+        </div>
+        <div class="form-row">
+            <label>Status</label>
+            <select id="editStatus">
+                <option value="Not Started">Not Started</option>
+                <option value="In Progress">In Progress</option>
+                <option value="At Risk">At Risk</option>
+                <option value="Blocked">Blocked</option>
+                <option value="Done">Done</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" id="modalCancel">Cancel</button>
+            <button class="btn primary" id="modalSave">Save</button>
+        </div>
     </div>
-    <div style="display:flex; gap:8px;">
-      <input type="number" id="editProgress" min="0" max="100" placeholder="Progress %" style="flex:1;">
-      <select id="editStatus" style="flex:2;">
-        <option>Not Started</option>
-        <option>In Progress</option>
-        <option>At Risk</option>
-        <option>Blocked</option>
-        <option>Done</option>
-      </select>
-    </div>
-    <div class="modal-actions">
-      <button id="modalDelete" style="background:#fee2e2; border-radius:40px; padding:6px 16px;"><i class="fas fa-trash-alt"></i> Delete</button>
-      <button id="modalCancel" style="background:white; border:1px solid #cbd5e1; border-radius:40px; padding:6px 16px;">Cancel</button>
-      <button id="modalSave" style="background:#1e293b; color:white; border-radius:40px; padding:6px 20px;">Save</button>
-    </div>
-  </div>
 </div>
 
 <script>
 (function() {
-  let tasks = [];
-  const STORAGE_KEY = 'gantt_refined';
-
-  function loadTasks() {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) try { tasks = JSON.parse(stored); } catch { tasks = []; }
-    if (!tasks.length) {
-      tasks.push({
-        id: Date.now(),
-        task: 'Design review',
-        sfdc: 'https://sfdc.com/001',
-        remark: 'kickoff Q1',
-        assigned: 'Alex',
-        start: '2026-02-10',
-        due: '2026-04-15',
-        progress: 35,
-        status: 'In Progress'
-      });
-      tasks.push({
-        id: Date.now()+1,
-        task: 'test 3',
-        sfdc: 'link 3',
-        remark: 'askdlfjhlhihugh askdlfjhlhihugh askdlfjhlhihugh askdlfjhlhihugh',
-        assigned: 'Mam',
-        start: '2026-03-19',
-        due: '2027-01-07',
-        progress: 20,
-        status: 'Blocked'
-      });
-    }
-  }
-  function saveTasks() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); renderAll(); }
-
-  function getMonday(date) {
-    const d = new Date(date);
-    d.setHours(0,0,0,0);
-    const day = d.getDay();
-    const diff = (day === 0 ? -6 : 1 - day);
-    d.setDate(d.getDate() + diff);
-    return d;
-  }
-
-  function getWeekNumber(d) {
-    const date = new Date(d);
-    date.setHours(0,0,0,0);
-    const day = date.getDay();
-    const thursday = new Date(date);
-    thursday.setDate(date.getDate() + (day === 0 ? -3 : 4 - day));
-    const year = thursday.getFullYear();
-    const firstThursday = new Date(year, 0, 1);
-    while (firstThursday.getDay() !== 4) firstThursday.setDate(firstThursday.getDate() + 1);
-    return Math.floor((thursday - firstThursday) / 86400000 / 7) + 1;
-  }
-
-  function getTimelineRange() {
-    let minStart = null, maxDue = null;
-    
-    tasks.forEach(t => {
-      if (t.start) {
-        const ds = new Date(t.start);
-        if (!isNaN(ds) && (!minStart || ds < minStart)) minStart = ds;
-      }
-      if (t.due) {
-        const de = new Date(t.due);
-        if (!isNaN(de) && (!maxDue || de > maxDue)) maxDue = de;
-      }
-    });
-
-    if (!minStart && !maxDue) {
-      const now = new Date();
-      minStart = now;
-      maxDue = now;
-    }
-    if (!minStart) minStart = maxDue;
-    if (!maxDue) maxDue = minStart;
-
-    const startMonday = getMonday(minStart);
-    const endMonday = getMonday(maxDue);
-    const endSunday = new Date(endMonday);
-    endSunday.setDate(endSunday.getDate() + 6);
-
-    return { start: startMonday, end: endSunday };
-  }
-
-  function generateWeeks(start, end) {
-    const weeks = [];
-    let current = new Date(start);
-    current.setHours(0,0,0,0);
-    while (current <= end) {
-      weeks.push({
-        weekStart: new Date(current),
-        weekNum: getWeekNumber(current),
-        month: current.toLocaleString('default',{month:'short'}),
-        year: current.getFullYear()
-      });
-      current.setDate(current.getDate() + 7);
-    }
-    return weeks;
-  }
-
-  function overlapsWeek(task, weekStart) {
-    if (!task.start || !task.due) return false;
-    const ts = new Date(task.start); ts.setHours(0,0,0,0);
-    const td = new Date(task.due); td.setHours(0,0,0,0);
-    const we = new Date(weekStart); we.setDate(weekStart.getDate() + 6);
-    return (ts <= we && td >= weekStart);
-  }
-
-  function statusColor(status) {
-    const map = {
-      'Not Started': '#94a3b8',
-      'In Progress': '#2563eb',
-      'At Risk': '#dc2626',
-      'Blocked': '#ea580c',
-      'Done': '#16a34a'
+    // ---------- status color map ----------
+    const STATUS_COLOR = {
+        'Not Started': '#94a3b8',
+        'In Progress': '#2563eb',
+        'At Risk': '#dc2626',
+        'Blocked': '#ea580c',
+        'Done': '#16a34a'
     };
-    return map[status] || '#94a3b8';
-  }
+    // pastel month colors array
+    const MONTH_PASTEL = ['#f8d7e3','#d9eaf7','#e2f0da','#fff2cc','#d7d9f7','#f0dbcd','#c9e4f0','#f3d9f1','#d1e6d9','#ffe5b9','#d4e2f0','#f9d7d0'];
 
-  function esc(s) { return (s || '').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+    // ---------- data model ----------
+    let tasks = [];
+    const STORAGE_KEY = 'gantt_tasks';
 
-  function renderAll() {
-    const range = getTimelineRange();
-    const weeks = generateWeeks(range.start, range.end);
-
-    // Build header
-    let thead = '<tr><th>Item</th><th>Task</th><th>SFDC</th><th>Remark</th><th>Assigned</th><th>Start</th><th>Due</th><th>Duration</th><th>Progress</th><th>Status</th>';
-    
-    const groups = [];
-    weeks.forEach((w, i) => {
-      const last = groups[groups.length-1];
-      if (!last || last.month !== w.month || last.year !== w.year) {
-        groups.push({ month: w.month, year: w.year, count: 1 });
-      } else {
-        last.count++;
-      }
-    });
-
-    groups.forEach(g => {
-      thead += `<th colspan="${g.count}" class="month-header">${g.month} ${g.year}</th>`;
-    });
-    thead += '</tr><tr><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>';
-    weeks.forEach(w => {
-      thead += `<th class="week-label">W${w.weekNum}</th>`;
-    });
-    thead += '</tr>';
-    document.getElementById('tableHeader').innerHTML = thead;
-
-    // Add week columns
-    const colgroup = document.querySelector('colgroup');
-    document.querySelectorAll('col.week-col').forEach(c => c.remove());
-    weeks.forEach(() => {
-      const col = document.createElement('col');
-      col.className = 'week-col';
-      colgroup.appendChild(col);
-    });
-
-    // Build body
-    let tbody = '';
-    tasks.forEach((t, idx) => {
-      const start = t.start || '';
-      const due = t.due || '';
-      const duration = (t.start && t.due) ? Math.round((new Date(t.due) - new Date(t.start)) / 86400000) + 'd' : '';
-      const prog = Math.min(100, Math.max(0, Number(t.progress) || 0));
-      const statusClass = 'status-' + (t.status ? t.status.toLowerCase().replace(' ', '') : 'notstarted');
-
-      tbody += `<tr data-id="${t.id}">`;
-      tbody += `<td class="item-icons"><span class="item-number">${idx+1}</span> <button class="icon-btn" onclick="editTask(${t.id})"><i class="fas fa-edit"></i></button> <button class="icon-btn" onclick="deleteTask(${t.id})"><i class="fas fa-trash-alt"></i></button></td>`;
-      tbody += `<td ondblclick="editTask(${t.id})"><div class="scrollable-cell">${esc(t.task)}</div></td>`;
-      tbody += `<td><div class="scrollable-cell">${esc(t.sfdc)}</div></td>`;
-      tbody += `<td><div class="scrollable-cell">${esc(t.remark)}</div></td>`;
-      tbody += `<td><div class="scrollable-cell">${esc(t.assigned)}</div></td>`;
-      tbody += `<td>${start}</td><td>${due}</td><td>${duration}</td>`;
-      tbody += `<td><div class="progress-container"><div class="progress-bg"><div class="progress-fill" style="width:${prog}%;"></div></div><span class="progress-text">${prog}%</span></div></td>`;
-      tbody += `<td><span class="status-badge ${statusClass}">${t.status || 'Not Started'}</span></td>`;
-
-      weeks.forEach(w => {
-        if (overlapsWeek(t, w.weekStart)) {
-          tbody += `<td class="week-cell"><div class="gantt-bar" style="background:${statusColor(t.status)};"></div></td>`;
+    // load from localStorage
+    function loadTasks() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            try { tasks = JSON.parse(stored); } catch { tasks = []; }
         } else {
-          tbody += `<td class="week-cell"></td>`;
+            // demo default tasks
+            tasks = [
+                { id: 't1', task: 'Design database', sfdc: 'https://sfdc.com/001', remark: 'ERD', assigned: 'Alice', start: '2025-03-10', due: '2025-04-05', progress: 70, status: 'In Progress' },
+                { id: 't2', task: 'Frontend prototype', sfdc: '', remark: 'Figma', assigned: 'Bob', start: '2025-03-20', due: '2025-04-10', progress: 40, status: 'At Risk' },
+                { id: 't3', task: 'API integration', sfdc: '', remark: 'REST', assigned: 'Charlie', start: '2025-04-01', due: '2025-04-22', progress: 15, status: 'Not Started' },
+            ];
         }
-      });
-      tbody += '</tr>';
-    });
-    
-    if (!tasks.length) {
-      tbody += `<tr><td colspan="${10 + weeks.length}" style="text-align:center; padding:40px;">No tasks. Click Add task to get started.</td></tr>`;
+        tasks.forEach(t => { if (!t.id) t.id = crypto.randomUUID?.() || 'id-'+Date.now()+Math.random(); });
     }
-    document.getElementById('tableBody').innerHTML = tbody;
-  }
+    function saveTasks() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
 
-  // Editor functions
-  let currentEditId = null;
-  window.editTask = function(id) {
-    const t = tasks.find(x => x.id == id);
-    if (t) {
-      document.getElementById('editTask').value = t.task || '';
-      document.getElementById('editSFDC').value = t.sfdc || '';
-      document.getElementById('editRemark').value = t.remark || '';
-      document.getElementById('editAssigned').value = t.assigned || '';
-      document.getElementById('editStart').value = t.start || '';
-      document.getElementById('editDue').value = t.due || '';
-      document.getElementById('editProgress').value = t.progress || 0;
-      document.getElementById('editStatus').value = t.status || 'Not Started';
-      document.getElementById('modalTitle').innerText = 'Edit Task';
-      currentEditId = t.id;
-    } else {
-      document.getElementById('editTask').value = '';
-      document.getElementById('editSFDC').value = '';
-      document.getElementById('editRemark').value = '';
-      document.getElementById('editAssigned').value = '';
-      document.getElementById('editStart').value = '';
-      document.getElementById('editDue').value = '';
-      document.getElementById('editProgress').value = 0;
-      document.getElementById('editStatus').value = 'Not Started';
-      document.getElementById('modalTitle').innerText = 'Add Task';
-      currentEditId = null;
+    // ---------- helper: week numbers & month headers ----------
+    function getWeekNumber(d) {
+        const date = new Date(d);
+        date.setHours(0,0,0,0);
+        const thursday = new Date(date);
+        thursday.setDate(date.getDate() + (4 - (date.getDay() || 7))); // move to thursday
+        const year = thursday.getFullYear();
+        const firstThursday = new Date(year, 0, 1);
+        firstThursday.setDate(1 + (4 - (firstThursday.getDay() || 7)));
+        const weekNum = Math.floor((thursday - firstThursday) / (86400000*7)) + 1;
+        return { week: weekNum, year };
     }
-    document.getElementById('editorModal').style.display = 'flex';
-  };
 
-  window.deleteTask = function(id) {
-    if (confirm('Delete this task?')) {
-      tasks = tasks.filter(t => t.id != id);
-      saveTasks();
+    function getMonthYearKey(d) {
+        const date = new Date(d);
+        return `${date.getFullYear()}-${date.getMonth()}`;
     }
-  };
 
-  // Modal buttons
-  document.getElementById('addTaskBtn').addEventListener('click', () => editTask(null));
-  document.getElementById('modalCancel').onclick = () => document.getElementById('editorModal').style.display = 'none';
-  
-  document.getElementById('modalSave').onclick = () => {
-    const taskData = {
-      task: document.getElementById('editTask').value,
-      sfdc: document.getElementById('editSFDC').value,
-      remark: document.getElementById('editRemark').value,
-      assigned: document.getElementById('editAssigned').value,
-      start: document.getElementById('editStart').value,
-      due: document.getElementById('editDue').value,
-      progress: parseInt(document.getElementById('editProgress').value) || 0,
-      status: document.getElementById('editStatus').value
-    };
-    
-    if (!taskData.task) {
-      alert('Task name is required');
-      return;
-    }
-    
-    if (currentEditId) {
-      const idx = tasks.findIndex(t => t.id == currentEditId);
-      if (idx >= 0) tasks[idx] = { ...tasks[idx], ...taskData, id: tasks[idx].id };
-    } else {
-      tasks.push({ ...taskData, id: Date.now() + Math.random() });
-    }
-    saveTasks();
-    document.getElementById('editorModal').style.display = 'none';
-  };
-  
-  document.getElementById('modalDelete').onclick = () => {
-    if (currentEditId) {
-      tasks = tasks.filter(t => t.id != currentEditId);
-      saveTasks();
-    }
-    document.getElementById('editorModal').style.display = 'none';
-  };
-
-  // Import/Export
-  document.getElementById('exportExcelBtn').onclick = () => {
-    const wsData = [['Task', 'SFDC', 'Remark', 'Assigned', 'Start', 'Due', 'Progress', 'Status']];
-    tasks.forEach(t => wsData.push([t.task, t.sfdc, t.remark, t.assigned, t.start, t.due, t.progress, t.status]));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
-    XLSX.writeFile(wb, 'tasks_export.xlsx');
-  };
-
-  document.getElementById('importFile').onchange = function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const data = new Uint8Array(ev.target.result);
-      const wb = XLSX.read(data, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      
-      if (rows.length < 2) return;
-      
-      const newTasks = [];
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!r[0]) continue;
-        newTasks.push({
-          id: Date.now() + i + Math.random(),
-          task: r[0] || '',
-          sfdc: r[1] || '',
-          remark: r[2] || '',
-          assigned: r[3] || '',
-          start: r[4] || '',
-          due: r[5] || '',
-          progress: Number(r[6]) || 0,
-          status: r[7] || 'Not Started'
+    // compute global timeline (weeks from earliest monday to latest sunday)
+    function computeTimelineWeeks() {
+        if (!tasks.length) return { weekList: [], monthSpans: [] };
+        let minDate = null, maxDate = null;
+        tasks.forEach(t => {
+            if (t.start) { const sd = new Date(t.start); if (!minDate || sd < minDate) minDate = sd; }
+            if (t.due) { const dd = new Date(t.due); if (!maxDate || dd > maxDate) maxDate = dd; }
         });
-      }
-      if (newTasks.length) {
-        tasks = newTasks;
-        saveTasks();
-      }
+        if (!minDate || !maxDate) return { weekList: [], monthSpans: [] };
+        // adjust to Monday of min week, Sunday of max week
+        const startMonday = new Date(minDate);
+        startMonday.setDate(minDate.getDate() - ((minDate.getDay() + 6) % 7)); // to monday
+        const endSunday = new Date(maxDate);
+        endSunday.setDate(maxDate.getDate() + (7 - (maxDate.getDay() || 7))); // next sunday
+
+        const weekList = [];
+        const current = new Date(startMonday);
+        while (current <= endSunday) {
+            const weekStart = new Date(current);
+            const weekEnd = new Date(current); weekEnd.setDate(current.getDate() + 6);
+            const { week } = getWeekNumber(current);
+            weekList.push({ start: new Date(current), end: weekEnd, week });
+            current.setDate(current.getDate() + 7);
+        }
+
+        // build month spans for header
+        const monthMap = new Map(); // monthKey -> { monthName, startIndex, endIndex, year, month }
+        weekList.forEach((w, idx) => {
+            const monthKey = getMonthYearKey(w.start);
+            if (!monthMap.has(monthKey)) {
+                const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                const d = w.start;
+                const monthIdx = d.getMonth();
+                monthMap.set(monthKey, { 
+                    name: `${monthNames[monthIdx]} ${d.getFullYear()}`,
+                    startIdx: idx, endIdx: idx, year: d.getFullYear(), month: monthIdx,
+                });
+            } else {
+                const obj = monthMap.get(monthKey);
+                obj.endIdx = idx;
+            }
+        });
+        const monthSpans = Array.from(monthMap.values());
+        return { weekList, monthSpans };
+    }
+
+    // render table
+    function render() {
+        const { weekList, monthSpans } = computeTimelineWeeks();
+        const header = document.getElementById('tableHeader');
+        const body = document.getElementById('tableBody');
+        let html = '<tr>';
+        // static columns
+        html += '<th>Item</th><th>Task</th><th>Remark</th><th>SFDC</th><th>Assigned</th><th>Start</th><th>Due</th><th>Duration</th><th>Progress</th><th>Status</th>';
+        // month headers (colspan weeks)
+        let colIdx = 10;
+        for (let m of monthSpans) {
+            const colspan = m.endIdx - m.startIdx + 1;
+            const pastel = MONTH_PASTEL[(m.month + m.year) % 12];
+            html += `<th colspan="${colspan}" class="month-header" style="background:${pastel};">${m.name}</th>`;
+        }
+        html += '</tr><tr>';
+        // second row: week numbers
+        html += '<th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>'; // empty under static
+        for (let w of weekList) {
+            html += `<th class="week-cell">W${w.week}</th>`;
+        }
+        html += '</tr>';
+        header.innerHTML = html;
+
+        // body rows
+        let bodyHtml = '';
+        tasks.forEach((task, index) => {
+            const itemNum = index + 1;
+            const start = task.start ? new Date(task.start) : null;
+            const due = task.due ? new Date(task.due) : null;
+            const duration = (start && due) ? Math.round((due - start) / (86400000)) + 'd' : '-';
+            const statusColor = STATUS_COLOR[task.status] || '#94a3b8';
+
+            bodyHtml += '<tr>';
+            // --- item column with icons ---
+            bodyHtml += `<td><div class="item-icons"><span>${itemNum}</span><span class="edit-icon" data-id="${task.id}">✏️</span><span class="delete-icon" data-id="${task.id}">🗑️</span></div></td>`;
+            // --- task (scrollable) double-click opens edit
+            bodyHtml += `<td ondblclick="window.openEditModal('${task.id}')"><div class="scrollable-cell">${escapeHtml(task.task || '')}</div></td>`;
+            // remark
+            bodyHtml += `<td><div class="scrollable-cell">${escapeHtml(task.remark || '')}</div></td>`;
+            // sfdc
+            bodyHtml += `<td><div class="scrollable-cell">${escapeHtml(task.sfdc || '')}</div></td>`;
+            // assigned
+            bodyHtml += `<td><div class="scrollable-cell">${escapeHtml(task.assigned || '')}</div></td>`;
+            // start
+            bodyHtml += `<td>${task.start || ''}</td>`;
+            // due
+            bodyHtml += `<td>${task.due || ''}</td>`;
+            // duration
+            bodyHtml += `<td>${duration}</td>`;
+            // progress bar
+            const p = task.progress || 0;
+            bodyHtml += `<td><div class="progress-container"><div class="progress-bar-bg"><div class="progress-fill" style="width:${p}%;"></div></div><span class="progress-percent">${p}%</span></div></td>`;
+            // status chip
+            bodyHtml += `<td><span class="status-chip" style="background:${statusColor};">${task.status || 'Not Started'}</span></td>`;
+
+            // Gantt week cells
+            for (let w of weekList) {
+                let showCircle = false;
+                if (start && due) {
+                    const wStart = w.start, wEnd = w.end;
+                    showCircle = (start <= wEnd && due >= wStart);
+                }
+                if (showCircle) {
+                    bodyHtml += `<td class="week-cell"><span class="gantt-circle" style="background-color:${statusColor};"></span></td>`;
+                } else {
+                    bodyHtml += `<td class="week-cell"></td>`;
+                }
+            }
+            bodyHtml += '</tr>';
+        });
+        body.innerHTML = bodyHtml;
+
+        // attach event listeners to icons (after render)
+        document.querySelectorAll('.edit-icon').forEach(el => {
+            el.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(el.dataset.id); });
+        });
+        document.querySelectorAll('.delete-icon').forEach(el => {
+            el.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(el.dataset.id); });
+        });
+    }
+
+    window.escapeHtml = (text) => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     };
-    reader.readAsArrayBuffer(file);
-    e.target.value = '';
-  };
 
-  document.getElementById('exportPDFBtn').onclick = function() {
-    const { jsPDF } = window.jspdf;
-    html2canvas(document.getElementById('ganttWrapper'), { scale: 1.5, backgroundColor: '#fff' }).then(canvas => {
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width/2, canvas.height/2] });
-      pdf.addImage(imgData, 'PNG', 10, 10, canvas.width/2 - 20, canvas.height/2 - 20);
-      pdf.save('gantt.pdf');
+    // modal handling
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalTitle = document.getElementById('modalTitle');
+    const inpTask = document.getElementById('editTask');
+    const inpSfdc = document.getElementById('editSfdc');
+    const inpRemark = document.getElementById('editRemark');
+    const inpAssigned = document.getElementById('editAssigned');
+    const inpStart = document.getElementById('editStart');
+    const inpDue = document.getElementById('editDue');
+    const inpProgress = document.getElementById('editProgress');
+    const inpStatus = document.getElementById('editStatus');
+    let currentEditId = null;
+
+    function openEditModal(id) {
+        const task = tasks.find(t => t.id === id);
+        if (task) {
+            currentEditId = id;
+            inpTask.value = task.task || '';
+            inpSfdc.value = task.sfdc || '';
+            inpRemark.value = task.remark || '';
+            inpAssigned.value = task.assigned || '';
+            inpStart.value = task.start || '';
+            inpDue.value = task.due || '';
+            inpProgress.value = task.progress || 0;
+            inpStatus.value = task.status || 'Not Started';
+            modalTitle.innerText = '✏️ Edit task';
+        } else {
+            // new
+            currentEditId = null;
+            inpTask.value = ''; inpSfdc.value = ''; inpRemark.value = ''; inpAssigned.value = '';
+            inpStart.value = ''; inpDue.value = ''; inpProgress.value = 0; inpStatus.value = 'Not Started';
+            modalTitle.innerText = '➕ New task';
+        }
+        modalOverlay.classList.remove('hidden');
+    }
+    window.openEditModal = openEditModal; // for ondblclick
+
+    function deleteTask(id) {
+        if (confirm('Delete task?')) {
+            tasks = tasks.filter(t => t.id !== id);
+            saveTasks(); render();
+        }
+    }
+
+    // save modal
+    document.getElementById('modalSave').addEventListener('click', () => {
+        const newTask = {
+            id: currentEditId || crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+Math.random(),
+            task: inpTask.value,
+            sfdc: inpSfdc.value,
+            remark: inpRemark.value,
+            assigned: inpAssigned.value,
+            start: inpStart.value,
+            due: inpDue.value,
+            progress: parseInt(inpProgress.value, 10) || 0,
+            status: inpStatus.value,
+        };
+        if (currentEditId) {
+            const idx = tasks.findIndex(t => t.id === currentEditId);
+            if (idx >= 0) tasks[idx] = newTask;
+        } else {
+            tasks.push(newTask);
+        }
+        saveTasks(); render(); modalOverlay.classList.add('hidden');
     });
-  };
+    document.getElementById('modalCancel').addEventListener('click', () => modalOverlay.classList.add('hidden'));
+    document.getElementById('addTaskBtn').addEventListener('click', () => openEditModal(null));
 
-  // Initial load
-  loadTasks();
-  renderAll();
+    // import/export
+    document.getElementById('importBtn').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.csv,.xlsx,.xls';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (loadEvent) => {
+                const data = new Uint8Array(loadEvent.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                if (rows.length < 2) return;
+                const headers = rows[0];
+                const newTasks = [];
+                for (let i=1; i<rows.length; i++) {
+                    const row = rows[i]; if (row.length < 2) continue;
+                    const task = {
+                        id: crypto.randomUUID?.(),
+                        task: row[0] || '',
+                        sfdc: row[1] || '',
+                        remark: row[2] || '',
+                        assigned: row[3] || '',
+                        start: row[4] || '',
+                        due: row[5] || '',
+                        progress: parseInt(row[6]) || 0,
+                        status: row[7] || 'Not Started',
+                    };
+                    if (task.task) newTasks.push(task);
+                }
+                if (newTasks.length) { tasks = newTasks; saveTasks(); render(); }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+        input.click();
+    });
+
+    document.getElementById('exportExcelBtn').addEventListener('click', () => {
+        const data = tasks.map(t => [t.task, t.sfdc, t.remark, t.assigned, t.start, t.due, t.progress, t.status]);
+        data.unshift(['Task','SFDC','Remark','Assigned','Start','Due','Progress','Status']);
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
+        XLSX.writeFile(wb, 'tasks_gantt.xlsx');
+    });
+
+    document.getElementById('exportPdfBtn').addEventListener('click', function() {
+        const element = document.getElementById('ganttTable');
+        html2canvas(element, { scale: 1.5, backgroundColor: '#ffffff' }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('l', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save('gantt.pdf');
+        });
+    });
+
+    // initial load & render
+    loadTasks(); render();
+    // close modal if click outside
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.add('hidden'); });
 })();
 </script>
 </body>
