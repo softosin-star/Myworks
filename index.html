@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Gantt · dense timeline</title>
+  <!-- SheetJS (XLSX) , html2canvas, jsPDF, and a simple icon font -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #f1f5f9; display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; padding: 20px;
+    }
+    .card {
+      background: white; border-radius: 24px; box-shadow: 0 20px 35px -8px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.05);
+      padding: 20px 16px; max-width: 98vw; width: fit-content;
+    }
+    .table-wrapper {
+      position: relative; overflow: auto; max-height: 80vh; border-radius: 16px; border: 1px solid #e9eef2;
+      background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+    }
+    table {
+      border-collapse: collapse; font-size: 13px; table-layout: fixed; background: white;
+    }
+    th, td {
+      border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0 4px;
+      height: 24px; line-height: 24px; white-space: nowrap; vertical-align: middle;
+      background: white; box-sizing: border-box;
+    }
+    th {
+      background: #f8fafc; font-weight: 600; color: #1e293b; border-bottom: 2px solid #cbd5e1;
+    }
+    /* sticky columns */
+    th:first-child, td:first-child {
+      position: sticky; left: 0; z-index: 3; background: white; border-right: 2px solid #cbd5e1;
+    }
+    th:nth-child(2), td:nth-child(2) {
+      position: sticky; left: 48px; z-index: 3; background: white; border-right: 2px solid #cbd5e1;
+    }
+    th:first-child, th:nth-child(2) { background: #f0f4f9; z-index: 4; }
+    td:first-child { background: white; }
+    td:nth-child(2) { background: white; }
+
+    /* column widths */
+    colgroup col.first-icon { width: 48px; }
+    colgroup col.task-col { width: 400px; }
+    colgroup col.remark-col { width: 400px; }
+    colgroup col.assigned-col { width: 104px; }
+    colgroup col.start-col, .due-col, .duration-col, .sfdc-col { width: 104px; }
+    colgroup col.progress-col { width: 150px; }
+    colgroup col.status-col { width: 130px; }
+    .week-col { width: 25px; min-width: 25px; max-width: 25px; }
+
+    /* status chips */
+    .status-chip {
+      display: inline-block; padding: 2px 8px; border-radius: 30px; font-size: 11px;
+      font-weight: 500; color: white; text-align: center; min-width: 70px;
+    }
+    .status-notstarted { background: #94a3b8; }
+    .status-inprogress { background: #2563eb; }
+    .status-atrisk    { background: #dc2626; }
+    .status-blocked   { background: #ea580c; }
+    .status-done      { background: #16a34a; }
+
+    /* progress bar */
+    .progress-container {
+      display: flex; align-items: center; gap: 6px; width: 100%;
+    }
+    .progress-bar-bg {
+      background: #e2e8f0; border-radius: 30px; height: 10px; flex: 1; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 30px; background: linear-gradient(90deg, #22c55e, #15803d);
+    }
+    .progress-text { font-size: 11px; min-width: 32px; }
+
+    /* Gantt bar centered inside week cell */
+    .gantt-cell {
+      text-align: center; vertical-align: middle; padding: 0;
+    }
+    .gantt-bar {
+      display: inline-block; width: 20px; height: 14px; border-radius: 12px;
+      background-color: #2563eb; /* fallback, overwritten by status color */
+    }
+    /* month header pastel */
+    .month-header {
+      background-color: #e2f0fa; font-weight: 500; font-size: 11px; text-align: center;
+      border-right: 1px solid #b8d1e6; color: #0f3b5e;
+    }
+    .week-number {
+      text-align: center; font-weight: 500; font-size: 10px; background: #f1f9ff;
+    }
+    .action-icon {
+      cursor: pointer; margin: 0 2px; color: #475569; font-size: 13px;
+    }
+    .action-icon:hover { color: #0f172a; }
+    td:first-child i { margin: 0 2px; }
+    .item-number { display: inline-block; width: 22px; font-weight: 500; }
+    .toolbar {
+      display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
+    }
+    button, .file-label {
+      background: white; border: 1px solid #cbd5e1; padding: 6px 16px; border-radius: 40px;
+      font-weight: 500; font-size: 13px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: 0.1s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    button:hover, .file-label:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .editor-overlay {
+      position: fixed; top: 0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.3);
+      display: flex; justify-content:center; align-items:center; z-index:1000;
+    }
+    .editor-card {
+      background: white; border-radius: 32px; padding: 28px; width: 380px; box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+    }
+    .editor-card h3 { margin-bottom: 20px; }
+    .editor-card input, .editor-card select, .editor-card textarea {
+      width: 100%; margin-bottom: 14px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 16px;
+      font-size: 13px; background: white;
+    }
+    .editor-card textarea { height: 60px; }
+    .editor-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 12px; }
+    .hidden { display: none; }
+    i.fa-edit, i.fa-trash { pointer-events: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="toolbar">
+    <button id="addTaskBtn"><i class="fas fa-plus"></i> Add task</button>
+    <button id="exportExcel"><i class="fas fa-file-excel"></i> Export XLSX</button>
+    <button id="exportPDF"><i class="fas fa-file-pdf"></i> Export PDF</button>
+    <label for="importFile" class="file-label"><i class="fas fa-upload"></i> Import Excel/CSV</label>
+    <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none;">
+    <span style="margin-left:auto; font-size:12px; color:#475569;"><i class="far fa-save"></i> autosave</span>
+  </div>
+  <div class="table-wrapper" id="ganttWrapper">
+    <table id="ganttTable">
+      <colgroup>
+        <col class="first-icon"><col class="task-col"><col class="remark-col"><col class="assigned-col">
+        <col class="start-col"><col class="due-col"><col class="duration-col"><col class="sfdc-col">
+        <col class="progress-col"><col class="status-col">
+      </colgroup>
+      <thead id="tableHeader"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+<!-- hidden editor dialog -->
+<div id="editorOverlay" class="editor-overlay hidden">
+  <div class="editor-card">
+    <h3 id="editorTitle">➕ Add task</h3>
+    <input type="text" id="editTask" placeholder="Task name" autocomplete="off">
+    <input type="text" id="editSFDC" placeholder="SFDC link (text)">
+    <textarea id="editRemark" placeholder="Remark"></textarea>
+    <input type="text" id="editAssigned" placeholder="Assigned">
+    <input type="date" id="editStart">
+    <input type="date" id="editDue">
+    <input type="number" id="editProgress" min="0" max="100" placeholder="Progress %">
+    <select id="editStatus">
+      <option value="Not Started">Not Started</option><option value="In Progress">In Progress</option>
+      <option value="At Risk">At Risk</option><option value="Blocked">Blocked</option><option value="Done">Done</option>
+    </select>
+    <div class="editor-actions">
+      <button id="editorDelete" style="background:#fee2e2; border-color:#fecaca;">🗑️ Delete</button>
+      <button id="editorCancel">Cancel</button>
+      <button id="editorSave" style="background:#1e293b; color:white;">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ---------- task store & helpers ----------
+  let tasks = [];
+  const STORAGE_KEY = 'gantt_tasks_dense';
+
+  // load / init
+  function loadTasks() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) try { tasks = JSON.parse(stored); } catch(e){ tasks = []; }
+    else tasks = [];
+    // ensure required fields
+    tasks.forEach((t,idx) => { t.id = t.id || Date.now()+idx; });
+  }
+  function saveTasks() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); render(); }
+
+  // ---------- ISO week helpers (week starts Monday, W1 = first Thursday) ----------
+  function getISOWeekMonday(date) {
+    const d = new Date(date); d.setHours(0,0,0,0);
+    const day = d.getDay(); const diff = (day === 0 ? -6 : 1 - day); // to Monday
+    return new Date(d.setDate(d.getDate() + diff));
+  }
+  function getWeekNumber(d) {
+    const date = new Date(d); date.setHours(0,0,0,0);
+    const day = date.getDay();
+    const thursday = new Date(date); 
+    thursday.setDate(date.getDate() + (day === 0 ? -3 : 4 - day)); // Thursday of the week
+    const year = thursday.getFullYear();
+    const firstThursday = new Date(year, 0, 1);
+    while (firstThursday.getDay() !== 4) firstThursday.setDate(firstThursday.getDate() + 1);
+    const weekNum = Math.floor((thursday - firstThursday) / 86400000 / 7) + 1;
+    return weekNum;
+  }
+
+  // timeline boundaries
+  function getTimelineRange() {
+    if (!tasks.length) {
+      const now = new Date(); const year = now.getFullYear();
+      return { start: new Date(year, 0, 1), end: new Date(year, 11, 31) };
+    }
+    let minStart = null, maxDue = null;
+    tasks.forEach(t => {
+      if (t.start) { const d = new Date(t.start); if (!isNaN(d) && (!minStart || d < minStart)) minStart = d; }
+      if (t.due) { const d = new Date(t.due); if (!isNaN(d) && (!maxDue || d > maxDue)) maxDue = d; }
+    });
+    if (!minStart && !maxDue) { const d = new Date(); return { start: d, end: d }; }
+    if (!minStart) minStart = maxDue;
+    if (!maxDue) maxDue = minStart;
+    // expand to Monday of earliest week, Sunday of latest week
+    const startMonday = getISOWeekMonday(minStart);
+    const endSunday = new Date(getISOWeekMonday(maxDue));
+    endSunday.setDate(endSunday.getDate() + 6); // sunday
+    return { start: startMonday, end: endSunday };
+  }
+
+  // generate week columns (array of { weekStartDate, weekNumber, monthName, year, monthSpan })
+  function generateWeeks(startDate, endDate) {
+    const weeks = [];
+    const current = new Date(startDate); current.setHours(0,0,0,0);
+    while (current <= endDate) {
+      const weekStart = new Date(current);
+      const weekNum = getWeekNumber(current);
+      const month = current.toLocaleString('default', { month:'short' });
+      const year = current.getFullYear();
+      weeks.push({ weekStart: new Date(current), weekNum, month, year });
+      current.setDate(current.getDate() + 7);
+    }
+    return weeks;
+  }
+
+  // check if task overlaps a given week (weekStart Monday)
+  function taskOverlapsWeek(task, weekStart) {
+    if (!task.start || !task.due) return false;
+    const taskStart = new Date(task.start); taskStart.setHours(0,0,0,0);
+    const taskDue = new Date(task.due); taskDue.setHours(0,0,0,0);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+    return (taskStart <= weekEnd && taskDue >= weekStart);
+  }
+
+  // status color map
+  function statusColor(status) {
+    switch(status) {
+      case 'Not Started': return '#94a3b8';
+      case 'In Progress': return '#2563eb';
+      case 'At Risk': return '#dc2626';
+      case 'Blocked': return '#ea580c';
+      case 'Done': return '#16a34a';
+      default: return '#94a3b8';
+    }
+  }
+
+  // render header + body
+  function render() {
+    const range = getTimelineRange();
+    const weeks = generateWeeks(range.start, range.end);
+
+    // build month grouping (colspan)
+    const monthGroups = [];
+    if (weeks.length) {
+      let curMonth = weeks[0].month, curYear = weeks[0].year, count = 0, startIdx = 0;
+      weeks.forEach((w, idx) => {
+        if (w.month === curMonth && w.year === curYear) count++;
+        else {
+          monthGroups.push({ month: curMonth, year: curYear, count, startIdx });
+          curMonth = w.month; curYear = w.year; count = 1; startIdx = idx;
+        }
+      });
+      monthGroups.push({ month: curMonth, year: curYear, count, startIdx });
+    }
+
+    // build header HTML
+    let thead = '<tr>';
+    // static columns
+    thead += '<th>#</th><th>Task</th><th>Remark</th><th>Assigned</th><th>Start</th><th>Due</th><th>Duration</th><th>SFDC</th><th>Progress</th><th>Status</th>';
+    // month headers
+    monthGroups.forEach(g => {
+      thead += `<th colspan="${g.count}" class="month-header" style="background:#f2eafd;">${g.month} ${g.year}</th>`;
+    });
+    thead += '</tr><tr><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>';
+    weeks.forEach(w => {
+      thead += `<th class="week-number">W${w.weekNum}</th>`;
+    });
+    thead += '</tr>';
+    document.getElementById('tableHeader').innerHTML = thead;
+
+    // colgroup for dynamic weeks
+    const colgroup = document.querySelector('colgroup');
+    const existingWeeks = document.querySelectorAll('col.week-col');
+    existingWeeks.forEach(c => c.remove());
+    for (let i=0; i<weeks.length; i++) {
+      const col = document.createElement('col');
+      col.className = 'week-col';
+      colgroup.appendChild(col);
+    }
+
+    // body rows
+    let tbody = '';
+    tasks.forEach((task, idx) => {
+      const startStr = task.start || '', dueStr = task.due || '';
+      const duration = (task.start && task.due) ? 
+        Math.round((new Date(task.due) - new Date(task.start)) / (86400000)) + 'd' : '';
+      const statusClass = `status-chip status-${task.status?.toLowerCase().replace(' ','') || 'notstarted'}`;
+      const progress = task.progress || 0;
+      const progressFill = `<div class="progress-container"><div class="progress-bar-bg"><div class="progress-fill" style="width:${progress}%"></div></div><span class="progress-text">${progress}%</span></div>`;
+
+      tbody += `<tr data-id="${task.id}">`;
+      tbody += `<td><span class="item-number">${idx+1}</span> <i class="fas fa-edit action-icon" onclick="openEditTask(${task.id})"></i> <i class="fas fa-trash action-icon" onclick="deleteTask(${task.id})"></i></td>`;
+      tbody += `<td ondblclick="openEditTask(${task.id})">${escapeHtml(task.task||'')}</td>`;
+      tbody += `<td>${escapeHtml(task.remark||'')}</td>`;
+      tbody += `<td>${escapeHtml(task.assigned||'')}</td>`;
+      tbody += `<td>${startStr}</td><td>${dueStr}</td><td>${duration}</td>`;
+      tbody += `<td>${escapeHtml(task.sfdc||'')}</td>`;
+      tbody += `<td>${progressFill}</td>`;
+      tbody += `<td><span class="${statusClass}">${task.status || 'Not Started'}</span></td>`;
+
+      // Gantt week cells
+      weeks.forEach(w => {
+        const overlaps = taskOverlapsWeek(task, w.weekStart);
+        const barColor = overlaps ? statusColor(task.status || 'Not Started') : 'transparent';
+        tbody += `<td class="gantt-cell">`;
+        if (overlaps) tbody += `<div class="gantt-bar" style="background:${barColor};"></div>`;
+        tbody += `</td>`;
+      });
+      tbody += `</tr>`;
+    });
+    if (tasks.length === 0) {
+      tbody += `<tr><td colspan="${10+weeks.length}" style="text-align:center;padding:40px;">No tasks. Click Add task.</td></tr>`;
+    }
+    document.getElementById('tableBody').innerHTML = tbody;
+  }
+  function escapeHtml(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/[&<>"]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; if(m==='"') return '&quot;'; return m; }); }
+
+  // ---------- editor ----------
+  let editId = null;
+  window.openEditTask = function(id) {
+    const task = tasks.find(t => t.id == id);
+    if (task) {
+      document.getElementById('editTask').value = task.task || '';
+      document.getElementById('editSFDC').value = task.sfdc || '';
+      document.getElementById('editRemark').value = task.remark || '';
+      document.getElementById('editAssigned').value = task.assigned || '';
+      document.getElementById('editStart').value = task.start || '';
+      document.getElementById('editDue').value = task.due || '';
+      document.getElementById('editProgress').value = task.progress || 0;
+      document.getElementById('editStatus').value = task.status || 'Not Started';
+      document.getElementById('editorTitle').innerText = '✏️ Edit task';
+      editId = task.id;
+    } else {
+      // add new
+      document.getElementById('editTask').value = '';
+      document.getElementById('editSFDC').value = '';
+      document.getElementById('editRemark').value = '';
+      document.getElementById('editAssigned').value = '';
+      const today = new Date().toISOString().slice(0,10);
+      document.getElementById('editStart').value = today;
+      document.getElementById('editDue').value = today;
+      document.getElementById('editProgress').value = 0;
+      document.getElementById('editStatus').value = 'Not Started';
+      document.getElementById('editorTitle').innerText = '➕ Add task';
+      editId = null;
+    }
+    document.getElementById('editorOverlay').classList.remove('hidden');
+  };
+  window.deleteTask = function(id) {
+    if (confirm('Delete task?')) { tasks = tasks.filter(t => t.id != id); saveTasks(); render(); }
+  };
+  // save from editor
+  document.getElementById('editorSave').onclick = () => {
+    const taskData = {
+      task: document.getElementById('editTask').value,
+      sfdc: document.getElementById('editSFDC').value,
+      remark: document.getElementById('editRemark').value,
+      assigned: document.getElementById('editAssigned').value,
+      start: document.getElementById('editStart').value,
+      due: document.getElementById('editDue').value,
+      progress: parseInt(document.getElementById('editProgress').value) || 0,
+      status: document.getElementById('editStatus').value
+    };
+    if (!taskData.task) return alert('Task name required');
+    if (editId) {
+      const idx = tasks.findIndex(t => t.id == editId);
+      if (idx>=0) { tasks[idx] = { ...tasks[idx], ...taskData, id: tasks[idx].id }; }
+    } else {
+      const newId = Date.now() + Math.random();
+      tasks.push({ ...taskData, id: newId });
+    }
+    saveTasks(); closeEditor();
+  };
+  document.getElementById('editorCancel').onclick = closeEditor;
+  document.getElementById('editorDelete').onclick = () => {
+    if (editId) { tasks = tasks.filter(t => t.id != editId); saveTasks(); }
+    closeEditor();
+  };
+  function closeEditor() { document.getElementById('editorOverlay').classList.add('hidden'); editId = null; }
+
+  // add button
+  document.getElementById('addTaskBtn').addEventListener('click', ()=>openEditTask(null));
+
+  // import/export
+  document.getElementById('exportExcel').addEventListener('click', ()=>{
+    const wsData = [['Item','Task','Remark','Assigned','Start','Due','Progress','Status','SFDC']];
+    tasks.forEach((t,i) => wsData.push([i+1, t.task, t.remark, t.assigned, t.start, t.due, t.progress, t.status, t.sfdc]));
+    const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
+    XLSX.writeFile(wb, 'tasks_export.xlsx');
+  });
+  document.getElementById('importFile').addEventListener('change', (e)=>{
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      const data = new Uint8Array(loadEvent.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if (rows.length<2) return;
+      const newTasks = [];
+      for (let i=1; i<rows.length; i++) {
+        const r = rows[i]; if (r.length<2) continue;
+        newTasks.push({
+          id: Date.now()+i+Math.random(),
+          task: r[1] || '',
+          remark: r[2] || '',
+          assigned: r[3] || '',
+          start: r[4] || '',
+          due: r[5] || '',
+          progress: parseInt(r[6]) || 0,
+          status: r[7] || 'Not Started',
+          sfdc: r[8] || '',
+        });
+      }
+      if (newTasks.length) { tasks = newTasks; saveTasks(); }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  });
+
+  // pdf export
+  window.jspdf = window.jspdf || window.jsPDF?.jsPDF;
+  document.getElementById('exportPDF').addEventListener('click', function(){
+    const element = document.getElementById('ganttTable').cloneNode(true);
+    // rough (simplified) – works but timeline may overflow. use wrapper.
+    html2canvas(document.getElementById('ganttWrapper'), { scale: 1, backgroundColor: '#ffffff' }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width/2, canvas.height/2] });
+      pdf.addImage(imgData, 'PNG', 10, 10, canvas.width/2-20, canvas.height/2-20);
+      pdf.save('gantt.pdf');
+    });
+  });
+
+  // initial load
+  loadTasks();
+  render();
+  window.addEventListener('storage', (e) => { if (e.key === STORAGE_KEY) { loadTasks(); render(); } });
+
+  // fix sticky overlap: ensure cell backgrounds
+})();
+</script>
+</body>
+</html>
